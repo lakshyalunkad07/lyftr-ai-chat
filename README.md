@@ -15,7 +15,7 @@ The application is deployment-ready, but public URLs require the owner's hosting
 ### With Docker
 
 1. Copy `.env.example` to `.env` and set `LLM_API_KEYS` to two valid keys for the provider selected by `LITELLM_MODEL`.
-2. Run `make up` from the repository root. The frontend is at <http://localhost:3000>; the API is at <http://localhost:8000>.
+2. Run `make up` from the repository root. The frontend is at <http://localhost:3000>; its `/api` path is proxied to the backend. The API is also available directly at <http://localhost:8000> for local checks.
 3. Run `make down` to stop the services. The named `app_data` volume retains the SQLite database.
 
 Docker Compose sets `ENABLE_FAILURE_SIMULATION=true` for local demonstration. Disable it for environments where you do not want the test hook.
@@ -42,7 +42,7 @@ Frontend (Node.js 22+):
 ```sh
 cd frontend
 npm install
-# Set VITE_API_URL=http://localhost:8000 in the build environment.
+# Vite proxies /api to http://localhost:8000 during local development.
 npm run dev -- --port 3000
 ```
 
@@ -51,7 +51,7 @@ npm run dev -- --port 3000
 - **Key fallback:** `LLM_API_KEYS` is an ordered comma-separated pool. Requests try each key in order; provider rate limits, quota failures, and server errors move to the next key. The response exposes only `key_1`, `key_2`, etc., never the secret. Exhaustion returns the contract's JSON 503.
 - **Caching:** LiteLLM's in-memory cache is enabled for provider requests. It uses exact request content, including the selected model and full system/history/new-message list. The API reads LiteLLM's cache-hit marker and returns the cached reply and its stored token usage as `LLM_CACHE`, with a null key id and zero fallback attempts. Simulation requests disable caching so the failover hook always demonstrates a real provider call. The local cache is process-local, so keep the backend at one instance and one Uvicorn worker; this matches the assignment's no-Redis constraint. See [LiteLLM's cache documentation](https://docs.litellm.ai/docs/proxy/caching).
 - **Sessions:** SQLite stores user and assistant messages, assistant metadata, timestamps, and a separate session row for the session-specific system prompt. A successful turn writes both messages together. Failed calls do not create or append to history. The history route returns oldest-first messages without system prompts.
-- **Privacy and deployment:** provider keys stay in environment variables. The backend listens on port 8000 and the Nginx-served React app on port 3000. In production, set `VITE_API_URL` to the public backend URL at frontend build time, and set `ALLOWED_ORIGINS` to the exact public frontend origin.
+- **Privacy and deployment:** provider keys stay in environment variables. The backend listens on port 8000 and the Nginx-served React app on port 3000. Docker Compose routes frontend `/api` requests through Nginx to the backend. For a separate frontend host, set `VITE_API_URL` to the public backend URL at frontend build time, and set `ALLOWED_ORIGINS` to the exact public frontend origin.
 
 ## 4. Verification: how to see failover, cache hits and per-message token usage
 
@@ -83,6 +83,10 @@ curl -X POST http://localhost:8000/chat \
 - Backend tests for health, validation, unknown sessions, caching, history, simulated failover, and failed-request history safety.
 
 ## Deployment notes
+
+### Free public demo from your computer
+
+The Docker Compose setup can be shared through one temporary Cloudflare Quick Tunnel. Set `VITE_API_URL=/api` in `.env`, rebuild with `docker compose up --build -d`, then run `cloudflared tunnel --url http://localhost:3000`. Share the `https://...trycloudflare.com` URL printed by `cloudflared`. Keep the computer, Docker Desktop, and tunnel process running during the demo. The URL changes when the tunnel is restarted. Anyone with the URL can use the app and its configured LLM quota, so share it only with the evaluator and stop the tunnel afterward.
 
 The following Render setup matches the included Dockerfile and SQLite volume. A persistent disk is required for session history; Render currently only attaches disks to paid services. See [Render's disk documentation](https://render.com/docs/disks).
 

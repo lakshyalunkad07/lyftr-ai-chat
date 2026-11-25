@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./style.css";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:8000"
+  import.meta.env.VITE_API_URL || "/api"
 ).replace(/\/$/, "");
 const sessionId = `s-${crypto.randomUUID()}`;
 
@@ -21,10 +21,12 @@ function App() {
       .then(setHealth)
       .catch(() => setHealth({ status: "offline" }));
   }, []);
-  useEffect(
-    () => tail.current?.scrollIntoView({ behavior: "smooth", block: "end" }),
-    [messages, busy],
-  );
+  useEffect(() => {
+    const element = tail.current;
+    if (typeof element?.scrollIntoView === "function") {
+      element.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, busy]);
 
   async function send(event) {
     event?.preventDefault();

@@ -139,6 +139,14 @@ async def _request_completion(messages: list[dict[str, str]], failures: dict[str
             return response, key_id, failed
         except Exception as exc:
             status = getattr(exc, "status_code", None)
+            # Log enough to diagnose provider failures without ever logging the API key
+            # or the exception text, which may contain request details.
+            logging.getLogger("lyftr").warning(
+                "LLM provider request failed for %s (%s, status=%s)",
+                key_id,
+                type(exc).__name__,
+                status,
+            )
             if status in (429, 500, 502, 503) or "quota" in str(exc).lower() or status is None:
                 failed += 1
                 continue
